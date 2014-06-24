@@ -1,0 +1,378 @@
+
+	<!DOCTYPE html><html><head>
+	<title>Ch3</title>
+	<style type="text/css"> 
+	body { font-family:'Helvetica', Arial, sans-serif; font-size:15px; 
+			color: #333; background-color:#FFF; line-height:1.5em; width:960px;
+      padding:0px}
+	h1 { font-size: 3.5em; line-height: 1em; color:#000; background-color:#FFF; 
+      text-align:center}
+  h1.chapter { background-color: #333; color: #fff; line-height:2em }
+	h2 { font-size: 2em; line-height: 1em; color:#000 }
+	h3 { font-size:1.5em; line-height: 1em; color:#000 } 
+  h4 { font-size:1em; line-height: 0em; padding-top:1em }
+	code { 	font-family: 'Monaco', monospace; font-size:12px; background:#EEE}
+	pre { color:#000; background:#EEE; padding:1em; line-height:1.35em }
+	#content { margin: 3.5em }
+	table { border-collapse: collapse; border: 1px solid #333 }
+	td { border: 1px solid #555; padding-left: 1em } 
+	th { color: #fff; background-color: #333 }
+	</style></head>
+	<body><div id="content">
+<h1>Chapter 3 - Clojure In Action</h1>
+
+<h2>Functions</h2>
+
+<p>Functions are a cornerstone of Lisp and get special treatment compared to other languages. Some of these features:</p>
+
+<ul>
+<li>Functions can be created dynamically at runtime</li>
+<li>Functions can be passed as arguments to other functions</li>
+<li>Functions can be returned from functions</li>
+<li>Functions can be stored as elements inside data structures</li>
+<li>Clojure functions are objects, and this gives them other interesting properties</li>
+</ul>
+
+<h3>Definition</h3>
+
+<p>Functions are defined using the <code>defn</code> macro which uses the following form</p>
+
+<pre><code>(defn function-name doc-string? attr-map? [params]
+ conditions-map?
+  (expressions))
+</code></pre>
+
+<p>The statements followed by ? are optional. Let&#39;s look at a few examples</p>
+
+<pre><code>(defn square [x] (* x x))
+</code></pre>
+
+<p>Once the macro goes through this it expands to</p>
+
+<pre><code>(def square (fn [x] (* x x)))
+</code></pre>
+
+<p>Which is the &quot;official&quot; syntax for defining a function, you create a name (called a <code>var</code> in Clojure), and bind a value to that, in this case an anonymous function that calculates the square of a number. That said, because function definitions are so common, the idiomatic way to define them is using <code>defn</code>. Now let&#39;s add in the docstring.</p>
+
+<pre><code>(defn square
+&quot;Returns the square of the argument&quot;
+  [x]
+  (* x x))
+</code></pre>
+
+<p>This is the string that will appear if you call <code>(doc square)</code> and is a good idea for any function in a library or that might be used by another programmer. Finally, to add the conditions map.</p>
+
+<pre><code>(defn square
+&quot;Returns the square of the argument&quot;
+[x]
+{ :pre [(&gt; x 0)]
+  :post [(&gt; % 0)] }
+(* x x))
+</code></pre>
+
+<p>The conditions map checks for valid values before calling the function, you can include multiple tests in each vector. <code>:pre</code> occurs before execution, and <code>:post</code> occurs after execution where <code>%</code> subs in for the returned value.</p>
+
+<h3>Multiple Arity</h3>
+
+<p>Clojure functions can have multiple arity, and they are all defined in the same body. To use multiple arity you list the parameters and the function body used with that number of parameters.</p>
+
+<pre><code>(defn add
+  &quot;Adds together an arbitrary number of arguments&quot;
+  ([] 0)
+  ([x] x)
+  ([x y] (+ x y)))
+</code></pre>
+
+<p>This function adds together anywhere from 0 to 2 numbers, returning a logical evaluation for every one of its arity values.</p>
+
+<h3>Variadic Functions</h3>
+
+<p>Functions can also take an aribitrary number of arguments, adding that to the <code>add</code> function would look like this:</p>
+
+<pre><code>(defn add
+  &quot;Adds together an arbitrary number of arguments&quot;
+  ([] 0)
+  ([x] x)
+  ([x y] (+ x y))
+  ([x y &amp; z] (+ x y (reduce + z))))
+</code></pre>
+
+<p>The <code>&amp; z</code> command breaks down to &quot;If you get any arguments beyond <code>x</code> and <code>y</code>, put them in a list called <code>z</code> and I will deal with them. The reason we use <code>x</code>, <code>y</code>, and <code>z</code> rather than simply <code>[x &amp; y]</code> is because you need each arity to have a different number of arguments and we already have one defined for two arguments.</p>
+
+<h3>Recursion</h3>
+
+<p>Because of limitations in the JVM, Clojure lacks some optimizations to recursive calls possessed by other languages, namely tail call optimization. Despite that, there are still optimized recursive structures in Clojure, but first lets look at different forms of recursion.</p>
+
+<pre><code>(defn factorial [n]
+  (if (= n 1)
+    1
+    (* n (factorial (- n 1)))))
+</code></pre>
+
+<p>This is a basic, stack-devouring recursive call. It uses a tremendous amount of memory because none of the values can evaluate until it reaches the end condition of n == 1. This can be modified by saving the running value and calling this via a tail call.</p>
+
+<pre><code>(defn factorial [n]
+  (defn factorial-iter [i total]
+    (if (= i 0)
+      total
+      (factorial-iter (- i 1) (* total i))))
+  (factorial-iter n 1))
+</code></pre>
+
+<p>This defines a second function inside the main function that keeps track of the iterations and the total calculated thusfar. This still blows up the stack in many languages because the return value of the first function, and indeed every recursive call made, still depends on the evaluation reaching an end condition.</p>
+
+<p>However, when you think about the calls being made you&#39;ll realize that the other recursive calls are not required, there&#39;s no need to save values that won&#39;t matter until the last iteration. For this reason, many languages have &quot;tail call optimization&quot; which recognizes a recursive function such as this and allows it to consume a constant space in memory. Because Clojure is built on the JVM, there are issues with its implementation that prevent tail call optimization from being implemented. Sad day. But all is not lost because tail calls in Clojure can achieve the same memory optimizations using a different syntax.</p>
+
+<pre><code>(defn factorial [n]
+  (loop [i n tot 1]
+    (if (= i 0)
+      tot
+      (recur (dec i) (* tot i)))))
+</code></pre>
+
+<p>While the syntax itself takes a little getting used to, it&#39;s actually a fairly expressive way of defining a recursive function. While this was covered already in Ch 2, it&#39;s being covered again in Ch 3 and since I&#39;m slavishly following the book I&#39;m explaining it again as well.</p>
+
+<p>The first part defines the function, we know that. The second part, the <code>loop</code> line binds variables to be used in the tail-recursive version. They bind the same way hash variables bind so i=n and tot=1 in this example. Next you set the end condition for the loop, i=0 in this case. Finally you use the <code>recur</code> command and alter the variables for the next recursive iteration. In our factorial example this means multiplying the sum and decrementing <code>i</code>.</p>
+
+<p>It&#39;s of moderate interest to note that <code>recur</code> can be called without using <code>loop</code>. Why is this of moderate interest, you ask? Because you can only bind variables that exist in the original function definition and tail end recursion generally requires more variables to proxy the mutable state of a function. Anyway, here&#39;s the example in the book:</p>
+
+<pre><code>(defn countdown [n]
+  (if-not (zero? n)
+    (do
+      (if (= 0 (rem n 100))
+            (println &quot;countdown: &quot; n))
+      (recur (dec n)))))
+</code></pre>
+
+<h3>Mutually Recursive Functions</h3>
+
+<p>Is the name of my next band as well as a pair of functions that recursively call each other.</p>
+
+<pre><code>(declare hat)
+
+(defn cat [n]
+  (if-not (zero? n)
+    (do
+      (if (= 0 (rem n 100))
+           (println &quot;cat:&quot; n))
+      (hat (dec n)))))
+
+(defn hat [n]
+  (if-not (zero? n)
+    (do
+      (if (= 0 (rem n 100))
+           (println &quot;hat:&quot; n))
+      (cat (dec n)))))
+</code></pre>
+
+<p>Together these functions are mutually recursive, and will eventually blow the stack. Unfortunately, <code>recur</code> is only useful for functions that recurse on themselves, so we need another solution to deal with this, the amazingly named &quot;trampoline&quot;.</p>
+
+<pre><code>(declare hatt)
+
+(defn catt [n]
+  (if-not (zero? n)
+    (do
+       (if (= 0 (rem n 100))
+           (println &quot;catt:&quot; n))
+       #(hatt (dec n)))))
+
+(defn hatt [n]
+  (if-not (zero? n)
+    (do
+       (if (= 0 (rem n 100))
+           (println &quot;hatt:&quot; n))
+       #(catt (dec n)))))
+</code></pre>
+
+<p>The difference here is the <code>#</code> macro, which defines an anonymous function that, when called, calls <code>hat</code>, which has its own anonymous function that calls <code>cat</code>. Our code no longer contains a genuine recursive call, the function returns an anonymous function, rather than waiting on the result of the whole chain to evaluate. But because the recursive calls are gone, it requires a special syntax to work.</p>
+
+<pre><code>(trampoline cat 10000)
+</code></pre>
+
+<p>This evaluates without blowing the stack and does it much faster than the mutually recursive version. The way trampoline works is by clearing values off the stack as long as the next return value is a function, as soon as an actual value returns, it returns that value directly, ignoring what would still be a mutually recursive call chain. My suspicion is that, as with tail call optimization, Clojure and the JVM simply require a more explicit syntax in order to accomplish the normal recursive optimizations that some other languages do by default.</p>
+
+<h3>Calling Functions</h3>
+
+<p>The most common function calling form has been seen here already dozens of times</p>
+
+<pre><code>(+ 1 2 3 4 5)
+</code></pre>
+
+<p>You can also take an existing list and use it as the arguments to a function with <code>apply</code></p>
+
+<pre><code>(apply + list)
+</code></pre>
+
+<p>As mentioned in the previous chapter, the difference between <code>apply</code> and <code>reduce</code> is that apply prepends the function to the list and evaluates it, so it works with all variadic functions, whereas <code>reduce</code> essentially places the function in between every item on the list (from an infix perspective)</p>
+
+<h3>Higher-Order Functions</h3>
+
+<p>Functions are first class objects, they can be treated like data, passed as arguments and returned from other functions. Because of these traits we consider functions in Clojure to be &quot;higher order functions&quot;. Higher order functions are important for <em>function composition</em>. A few examples of useful higher-order functions include <code>map</code>, <code>filter</code> and <code>reduce</code> seen previously, as well as the following:</p>
+
+<h4>Every/some</h4>
+
+<p><code>every?</code> takes a predicate and a sequence and checks to see if every value in the sequence passes the test, if so it returns <code>true</code>, if not it returns <code>false</code>.</p>
+
+<pre><code>(def x (into [] (range 2 12 2))
+(every? even? x)
+&gt;&gt; true
+</code></pre>
+
+<p><code>some</code> is the same basic idea, but it only requires one of the values to be true in order to return true, otherwise it returns <code>nil</code></p>
+
+<h4>Constantly</h4>
+
+<p>Constantly takes a value and returns a function. Every call to that function will return the original value passed no matter what. It&#39;s incredibly useful when you want a function that makes no sense.</p>
+
+<pre><code>(def x (constantly 10))
+(x 1 2)
+&gt;&gt; 10
+(x 1 2 3 4 5 6 7)
+&gt;&gt; 10
+(x (take 1000000 (range 1 1000000000000)))
+&gt;&gt; 10
+(x &quot;Hello, world!&quot;)
+&gt;&gt; 10
+</code></pre>
+
+<p>True to the function&#39;s definition, x is constantly 10</p>
+
+<h4>Complement</h4>
+
+<p>Takes a function and returns a function of the same arity that returns the logical opposite of the first function.</p>
+
+<pre><code>(def not-empty? (complement empty?))
+</code></pre>
+
+<p>While I currently feel that this is a very odd feature to implement as a core feature of a language, I can see genuine uses for this one.</p>
+
+<h4>Partial</h4>
+
+<p><code>partial</code> is a function for creating function partials.</p>
+
+<pre><code>(defn gt? [threshold test] (&gt; number threshold))
+</code></pre>
+
+<p>Defines a predicate function that returns true if the value given is above the threshold, to define it for a fixed threshold we can use partial.</p>
+
+<pre><code>(def gt5? (partial gt? 5))
+(gt5? 10)
+&gt;&gt; true
+(gt5? 3)
+&gt;&gt; false
+(gt5? 5)
+&gt;&gt; false
+</code></pre>
+
+<h4>Memoize</h4>
+
+<p><code>memoize</code> implements memoization, which remembers the results of previous runs and stores them for faster calculation</p>
+
+<pre><code>defn fibo [n]
+  (if (or (= n 0) (= n 1))
+    n
+    (+ (fibo (- n 1)) (fibo (- n 2)))))
+
+(def fib (memoize fibo))
+
+(defn -main [&amp; args]
+  (time (println (fib 35)))
+  (time (println (fib 35))))
+
+&gt;&gt; 9227465
+&gt;&gt; &quot;Elapsed time: 492.084 msecs&quot;
+&gt;&gt; 9227465
+&gt;&gt; &quot;Elapsed time: 0.155 msecs&quot;
+</code></pre>
+
+<p>As you can see the second call to the function runs <em>much</em> faster because the result of that function had been recorded, so rather than run the function again, it simply looks up the results.</p>
+
+<p>However, this doesn&#39;t actually work the way memoization is supposed to. Memoization is supposed to remember the values of every function call, including the recursive ones. In other words, the call to <code>(fib 35)</code> should also memoize the values of fib-1 to fib-34 as well as the value for 35. This would allow us to easily calculate the values of larger fib numbers by leaning on the memoized values, and streamlines the number of calls made calculating the same fibo numbers over and over again.</p>
+
+<p>The reason for this is in the recursive calls.  We call <code>fib</code> but <code>fib</code> calls <code>fibo</code> and <code>fibo</code> recurses on itself.  We need the recursive calls to call the memoized function instead. We could do this by simply changing</p>
+
+<pre><code>(def fib (memoize fibo))
+</code></pre>
+
+<p>to</p>
+
+<pre><code>(def fibo (memoize fibo))
+</code></pre>
+
+<p>But re-binding that symbol is confusing to read and easily missed. A better way is to simply have <code>fib</code> bind to a memoized anonymous function in the first place.</p>
+
+<h2>Function Composition</h2>
+
+<p>Let&#39;s look at an example of composing higher-order-functions with simpler ones.</p>
+
+<pre><code>(def users [
+  {:username &quot;kyle&quot;
+   :balance 175.00
+   :member-since &quot;2009-04-16&quot;}
+
+  {:username &quot;zak&quot;
+   :balance 12.95
+   :member-since &quot;2009-02-01&quot;}
+  {:username &quot;rob&quot;
+   :balance 98.50
+   :member-since &quot;2009-03-30&quot;}
+])
+
+(defn username [user]
+  (user :username))
+
+(defn balance [user]
+  (user :balance))
+
+(defn sorter-using [ordering-fn]
+  (fn [users]
+    (sort-by ordering-fn users)))
+
+(def poorest-first (sorter-using balance))
+
+(def alphabetically (sorter-using username))
+</code></pre>
+
+<p>We start with a data structure representing users as a vector of hashes for each user. Suppose we want to sort users by different traits. We start by defining two functions, <code>username</code> and <code>balance</code> that fetch the username and the balance, respectively, given a user hash. Next we define a function, <code>sorter-using</code>, that takes an ordering function, then creates an anonymous function that uses this function and <code>users</code> to sort users with the predicate supplied. Finally we combine these in a set of two functions that use the <code>sorter-using</code> function with the <code>username</code> and <code>balance</code> functions, allowing us to sort the vector by username and balance.</p>
+
+<h3>Anonymous Functions</h3>
+
+<p>There are times when functions only need to be run once, like passing a function as an argument or as a callback. In Clojure this is simple, in fact, anonymous functions are the only way to define functions, naming them is simply binding an anonymous function to a name, which is what the <code>defn</code> macro expands to. Anyway, an example of an anonymous function</p>
+
+<pre><code>(fn [x y] (+ x y))
+</code></pre>
+
+<p>Again, without a name there&#39;s no way of calling this, but then again this section isn&#39;t called &quot;Nonymous Functions&quot;. An example using the users from above</p>
+
+<pre><code>(map (fn [user] (user :member-since)) users)
+</code></pre>
+
+<p>This will return a list of all <code>:member-since</code> dates from the vector. Because this is a common pattern there are macros that make this even easier.</p>
+
+<pre><code>(map #(% :member-since) users)
+</code></pre>
+
+<p>This is exactly equivalent to the previous version. The <code>#</code> defines an anonymous function, and the <code>%</code> acts as a placeholder for the first variable, if more than one variable is needed you can use <code>%1</code>, <code>%2</code>, etc. Here&#39;s an example with the ubiquitous addition function.</p>
+
+<pre><code>#(+ %1 %2)
+</code></pre>
+
+<p>That&#39;s it. It combines the function body and the function definition into a single statement that expands to:</p>
+
+<pre><code>(fn [x y] (+ x y))
+</code></pre>
+
+<h3>Keywords and Symbols</h3>
+
+<p>In Clojure, keywords and symbols both work as functions which interact with hashes. So you can write code like the following.</p>
+
+<pre><code>(def person {:username &quot;Zac&quot;
+             :balance 102.3
+             :member-since &quot;2009-02-01&quot;})
+(person :username)
+&gt;&gt; &quot;Zac&quot;
+(:member-since person)
+&gt;&gt; &quot;2009-02-01&quot;
+</code></pre>
+
+</div></body></html>
