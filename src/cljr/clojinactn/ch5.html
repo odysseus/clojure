@@ -1,0 +1,235 @@
+
+	<!DOCTYPE html><html><head>
+	<title>Ch5</title>
+	<style type="text/css"> 
+	body { font-family:'Helvetica', Arial, sans-serif; font-size:15px; 
+			color: #333; background-color:#FFF; line-height:1.5em; width:960px;
+      padding:0px}
+	h1 { font-size: 3.5em; line-height: 1em; color:#000; background-color:#FFF; 
+      text-align:center}
+  h1.chapter { background-color: #333; color: #fff; line-height:2em }
+	h2 { font-size: 2em; line-height: 1em; color:#000 }
+	h3 { font-size:1.5em; line-height: 1em; color:#000 } 
+  h4 { font-size:1em; line-height: 0em; padding-top:1em }
+	code { 	font-family: 'Monaco', monospace; font-size:12px; background:#EEE}
+	pre { color:#000; background:#EEE; padding:1em; line-height:1.35em }
+	#content { margin: 3.5em }
+	table { border-collapse: collapse; border: 1px solid #333 }
+	td { border: 1px solid #555; padding-left: 1em } 
+	th { color: #fff; background-color: #333 }
+	</style></head>
+	<body><div id="content">
+<h1>Java Interop</h1>
+
+<h3>Importing Java Classes</h3>
+
+<p>Clojure provides the <code>import</code> function to import Java functions</p>
+
+<pre><code>(import &amp; import-symbols-or-lists)
+</code></pre>
+
+<p>Import is a variadic function that can take any number of arguments. The arguments are lists where the first argument is the package, followed by the names of the classes you want to import.</p>
+
+<pre><code>(import
+  &#39;(org.apache.hadoop.hbase.client HTable Scan Scanner)
+  &#39;(org.apache.hadoop.hbase.filter RegExpRowFilter StopRowFilter))
+</code></pre>
+
+<p>You can import Java classes in the namespace declaration using the <code>:import</code> keyword. </p>
+
+<pre><code>(ns com.clojureinaction.book
+  (:import (java.util Set)))
+</code></pre>
+
+<h3>Creating Instances and Accessing Methods</h3>
+
+<pre><code>(import &#39;(java.text SimpleDateFormat))
+(def sdf (new SimpleDateFormat &quot;yyyy-MM-dd&quot;))
+</code></pre>
+
+<p>The syntax for creating an instance here is fairly simple, <code>new</code> is a function that creates a new instance, the class name comes next, followed by the arguments typically used by the constructor method.</p>
+
+<p>Clojure also supports a different syntax for <code>new</code> in which the class name is simply followed by a <code>.</code> and the arguments it would normally take. Using this form converts it into the appropriate <code>new</code> form. The above example in the different syntax.</p>
+
+<pre><code>(def sdf (SimpleDateFormat. &quot;yyyy-MM-dd&quot;))
+</code></pre>
+
+<p>Calling static methods from classes is similarly convenient:</p>
+
+<pre><code>(Long/parseLong &quot;123123456&quot;)
+</code></pre>
+
+<p>You simply use the <code>Classname/methodname</code> format that you use for calling methods from other classes within Clojure code. The same format can be used to call static fields.</p>
+
+<pre><code>(import &#39;(java.util Calendar))
+Calendar/JANUARY
+Calendar/FEBRUARY
+</code></pre>
+
+<h3>The Dot</h3>
+
+<p>All underlying Java interop is done using the <code>.</code> operator.  According to the official docs, the dot can be read as &quot;in the scope of&quot;. Looking at a few examples:</p>
+
+<pre><code>(. Classname-symbol method-symbol args*)
+(. Classname-symbol (method-symbol args*))
+</code></pre>
+
+<p>This allows static methods to be called on the classes in the first argument. The first form is slightly more idiomatic, but the second form makes the call and arguments to the method itself more obvious. Now to look at the syntax for instances.</p>
+
+<pre><code>(. instance-expr method-symbol args*)
+(. instance-expr (method-symbol args*))
+</code></pre>
+
+<p>And the following example which uses both of the forms:</p>
+
+<pre><code>(import &#39;(java.util Random))
+(def rnd (Random. ))
+
+(. rnd nextInt 10)
+(. rnd (nextInt 10))
+</code></pre>
+
+<p>The dot operator is normally used inside macros and other generated code because it follows an easily abstracted pattern, for code you write directly the forms described earlier are more idiomatic.</p>
+
+<h3>Chaining Methods</h3>
+
+<p>Chaining method calls together in Java is a common pattern that gets a bit ugly in Clojure. Consider this snippet:</p>
+
+<pre><code>Calenar.getInstance().getTimeZone().getDisplayName()
+</code></pre>
+
+<p>Converted to Clojure it would look like this:</p>
+
+<pre><code>(. (. (Calendar/getInstance) (getTimeZone)) (getDisplayName))
+</code></pre>
+
+<p>Not quite as expressive as the Java version. To make code like this easier to write there&#39;s a <code>..</code> macro that simply chains together method calls.</p>
+
+<pre><code>(.. (Calendar/getInstance) getTimeZone getDisplayName)
+</code></pre>
+
+<p>Or with arguments:</p>
+
+<pre><code>(..
+  (Calendar/getInstance)
+  (getTimeZone)
+  (getDisplayName true TimeZone/SHORT))
+</code></pre>
+
+<p>Much better!</p>
+
+<h3>Doto</h3>
+
+<p>The <code>doto</code> (Do to) macro is used when performing a bunch of operations on the same Java object. So you can take code like this:</p>
+
+<pre><code>(import &#39;(java.util Calendar))
+(defn the-past-midnight-1 []
+  (let [calendar-obj (Calendar/getInstance)]
+    (.set calendar-obj Calendar/AM_PM Calendar/AM)
+    (.set calendar-obj Calendar/HOUR 0)
+    (.set calendar-obj Calendar/MINUTE 0)
+    (.set calendar-obj Calendar/SECOND 0)
+    (.set calendar-obj Calendar/MILLISECOND 0)
+    (.getTime calendar-obj)))
+</code></pre>
+
+<p>And turn it into code like this:</p>
+
+<pre><code>(defn the-past-midnight-2 []
+  (let [calendar-obj (Calendar/getInstance)]
+    (doto calendar-obj
+      (.set Calendar/AM_PM Calendar/AM)
+      (.set Calendar/HOUR 0)
+  (.set Calendar/MINUTE 0)
+  (.set Calendar/SECOND 0)
+  (.set Calendar/MILLISECOND 0))
+(.getTime calendar-obj)))
+</code></pre>
+
+<p>That eliminates a lot of redundant calls to <code>calendar-obj</code></p>
+
+<h3>memfn</h3>
+
+<p>Suppose you were mapping an instance method to a vector of data:</p>
+
+<pre><code>(map (fn [x] (.getBytes x)) [&quot;amit&quot; &quot;rob&quot; &quot;kyle&quot;])
+</code></pre>
+
+<p>One way to make this easier would simply be to use the anonymous function macro:</p>
+
+<pre><code>(map #(.getBytes %) [&quot;amit&quot; &quot;rob&quot; &quot;kyle&quot;])
+</code></pre>
+
+<p>&quot;But wait!&quot; You say. &quot;.getBytes is already a function, why can&#39;t we just map the call directly!?&quot;</p>
+
+<p>The answer is that instance methods are not first class, and cannot be called that way, they need to operate on something of their class.  However, since there is a syntax for supporting it, you would probably guess that there&#39;s a macro or something that makes it easier to write code in this specific instance, and you&#39;d be correct. It&#39;s called <code>memfn</code> and it converts a member function to a proper function to use in calls like <code>map</code></p>
+
+<p>(map (memfn getBytes) [&quot;bob&quot;, &quot;rob&quot;, &quot;sob&quot;])</p>
+
+<p>This also works on instance methods with more than one argument by naming the arguments after the method call:</p>
+
+<pre><code>(.subSequence &quot;Clojure&quot; 2 5)
+;; Is equivalent to
+((memfn subSequence start end) &quot;Clojure&quot; 2 5)
+</code></pre>
+
+<p>Okay, so in this example it seems to do little more than make the code look less clean, but the value returned by <code>memfn</code> is a callable function, so it can be bound to a var and used as a higher order Clojure function</p>
+
+<pre><code>(def sub-seq (memfn subSequence a b))
+=&gt; (sub-seq &quot;Hello&quot; 1 2)
+&quot;e&quot;
+</code></pre>
+
+<h3>bean</h3>
+
+<p>Bean is useful when dealing with Java classes called &quot;beans&quot; that expose their internal variables via getter and setter methods. While the tools above are enough to make this work, via calling the getter and setter as <code>(.setValue obj x)</code> this gets tedious, and is not idiomatically Clojure in style. <code>bean</code> comes to the rescue by enabling you to convert an object to a hash map instead.</p>
+
+<pre><code>(bean (Calendar/getInstance))
+;; Creates
+
+{:timeInMillis 1257466522295,
+ :minimalDaysInFirstWeek 1,
+ :lenient true,
+ :firstDayOfWeek 1,
+ :class java.util.GregorianCalendar
+
+;; other properties
+}
+</code></pre>
+
+<p>Like all Clojure structures, the returned map is immutable.</p>
+
+<h3>Java Arrays</h3>
+
+<p>Javarrays? While they aren&#39;t used as much in idiomatic Clojure code, they are used heavily in Java code, and as such you&#39;ll end up dealing with them a fair amount. Clojure provides a handful of builtin functions for working with Arrays:</p>
+
+<ul>
+<li><code>(alength arr)</code>: Finds the length of the array.</li>
+<li><code>(aget arr 2)</code>: Returns the element at the index specified.</li>
+<li><code>(aset arr 2 &quot;newValue&quot;)</code>: Changes the value at index 2 to &quot;newValue&quot; (Assuming the array was an array of strings.)</li>
+</ul>
+
+<p>Converting sequences into Javarrays can be done using <code>to-array</code>, <code>to-array-2d</code>, <code>into-array</code>. <code>make-array</code> allows arbitrary new Java arrays to be created. Finally, there are array specific versions of map and reduce called <code>amap</code> and <code>areduce</code></p>
+
+<p><strong>Mutability Alert</strong> All Java structures are mutable because Java is a mutable language. This can be a good or a bad thing depending, the important thing is to know this. You can&#39;t rely on immutability by default on a Java structure as you would by a Clojure structure.</p>
+
+<h3>Implementing Java Interfaces and Extending Classes</h3>
+
+<p>On a larger scale, one of the most important pieces of Java interop is implementing a Java interface or subclassing a class written in Java. Clojure provides the elements needed to make this work. Here&#39;s an example that extends a class on the Grizzly framework:</p>
+
+<pre><code>(import &#39;(com.sun.grizzly.tcp.http11 GrizzlyAdapter))
+(proxy [GrizzlyAdapter] []
+    (service [req res]
+      &quot;Service was called!&quot;))
+</code></pre>
+
+<p>The general form of this expression is:</p>
+
+<pre><code>(proxy [class-and-interfaces] [args] fs+)
+</code></pre>
+
+<h3>Ahead of Time Compiling</h3>
+
+<p>It&#39;s possible. Chapter 5.</p>
+
+</div></body></html>

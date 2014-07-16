@@ -1,0 +1,214 @@
+
+	<!DOCTYPE html><html><head>
+	<title>Ch4</title>
+	<style type="text/css"> 
+	body { font-family:'Helvetica', Arial, sans-serif; font-size:15px; 
+			color: #333; background-color:#FFF; line-height:1.5em; width:960px;
+      padding:0px}
+	h1 { font-size: 3.5em; line-height: 1em; color:#000; background-color:#FFF; 
+      text-align:center}
+  h1.chapter { background-color: #333; color: #fff; line-height:2em }
+	h2 { font-size: 2em; line-height: 1em; color:#000 }
+	h3 { font-size:1.5em; line-height: 1em; color:#000 } 
+  h4 { font-size:1em; line-height: 0em; padding-top:1em }
+	code { 	font-family: 'Monaco', monospace; font-size:12px; background:#EEE}
+	pre { color:#000; background:#EEE; padding:1em; line-height:1.35em }
+	#content { margin: 3.5em }
+	table { border-collapse: collapse; border: 1px solid #333 }
+	td { border: 1px solid #555; padding-left: 1em } 
+	th { color: #fff; background-color: #333 }
+	</style></head>
+	<body><div id="content">
+<h1>Polymorphism</h1>
+
+<p>Clojure polymorphism is not done in the same way as Ruby and other OO languges. But to discuss the way Clojure does things, we&#39;re going to review the common OO approach and then present how Clojure is different from these things.</p>
+
+<h3>Subtype Polymorphism</h3>
+
+<p>Is the most common polypmorphic pattern in use today. It uses classes, inheritance, and method overloading to ensure that functions have consistent names and can be used in consistent ways while ensuring that the code that gets run is specific to that class. Clojure does not natively support subtyping.</p>
+
+<h3>Duck Typing</h3>
+
+<p><em>“When I see a bird that walks like a duck and swims like a duck and quacks like a duck, I call that bird a duck”</em></p>
+
+<p>Duck typing simply refers to inferring the type of an object based on how it looks and how it behaves.  Therefore <code>10</code> looks like an int and can be added to other numbers, so it&#39;s probably an int, whereas <code>10.0</code> looks more like a float. This is the type of polymorphism supported by most dynamic languages.</p>
+
+<p>Duck typing, while convenient, doesn&#39;t allow for functions to be defined with different arities or accepting different types on its own. To do that another form of polymorphism, such as subtyping or overloading, needs to be implemented.</p>
+
+<h2>Method Dispatch</h2>
+
+<p>Method dispatch describes the process by which a function name is bound to a function definition, either at runtime or compile time.  In terms of polymorphism, what this means is that the compiler/interpreter needs to determine which of the identically named methods is needed for the given arguments. This is usually done by comparing arities and types.</p>
+
+<h3>Single Dispatch</h3>
+
+<p>Let&#39;s imagine a couple of basic classes in Java that inherit from each other:</p>
+
+<pre><code>public interface Person {
+    public void pet(Dog d);
+    public void pet(Cat c);
+}
+
+public class Man implements Person {
+  public void pet(Dog d) {
+    System.out.println(&quot;Man here, petting dog:&quot; + d.makeSound());
+  }
+
+  public void pet(Cat c) {
+    System.out.println(&quot;Man here, petting cat:&quot; + c.makeSound());
+  }
+}
+
+public class Woman implements Person{
+  public void pet(Dog d) {
+    System.out.println(&quot;Woman here, petting dog:&quot; + d.makeSound());
+  }
+
+  public void pet(Cat c) {
+       System.out.println(&quot;Woman here, petting cat:&quot; + c.makeSound());
+  }
+}
+</code></pre>
+
+<p>Let&#39;s follow up the Person classes with the Animals:</p>
+
+<pre><code>public interface Animal {
+    public String makeSound();
+}
+
+public class Dog implements Animal{
+     public String makeSound() {
+         return &quot;Bow, wow&quot;;
+     }
+}
+
+public class Cat implements Animal {
+     public String makeSound() {
+         return &quot;Meow&quot;;
+     }
+}
+</code></pre>
+
+<p>The ideas here are pretty basic, people can pet animals and the animals can make sounds, so let&#39;s run that in a new class called <code>Park</code></p>
+
+<pre><code>public class Park {
+  public static void main(String[] args) {
+     Person p = new Man();
+     Animal a = new Dog();
+     p.pet(a);
+  }
+}
+</code></pre>
+
+<p>The code here is fairly basic: <code>p</code> is declared as a <code>Person</code> then uses <code>Man()</code> as its constructor, which is valid because Man is a subclass of Person. Then <code>a</code> is declared as an <code>Animal</code> and constructed using <code>Dog()</code>, which is also valid. Then we call <code>p.pet(a)</code> and get an error. Que?! The error you&#39;ll get is that <code>pet</code> can&#39;t be resolved, because it doesn&#39;t find a version of the <code>pet</code> method that takes an <code>Animal</code> as it&#39;s receiver.</p>
+
+<p>This is the problem with single dispatch, and it occurs when you have multiple hierarchies interacting in this way. Java only looks at the runtime type of the receiver in a method call. So it sees that <code>p</code> is declared as a <code>Person</code> but determines at runtime that the type is <code>Man</code>, so far so good. Unfortunately it doesn&#39;t do the same for <code>a</code>. It sees that it was declared as <code>Animal</code> and then stops. So when looking for a <code>pet</code> method it needs one where the argument passed is an <code>Animal</code>. If we had a way to determine the runtime type of <code>a</code> then the whole problem would be fixed.</p>
+
+<h3>The Visitor Pattern</h3>
+
+<p>In the scenario above, only the receiver of a method call is resolved to its runtime type, but we need the argument to be resolved as well. This basically describes double dispatch, in double dispatch both the receiver and the first argument are resolved before determining the method to call.</p>
+
+<p>Even though Java doesn&#39;t have double dispatch we can simulate it using a pattern called the &quot;Visitor Pattern&quot;, which we&#39;re going to look at here for some reason before the <code>#SpoilerAlert</code> revelation that Clojure doesn&#39;t need the visitor pattern.</p>
+
+<p>Consider two objects, one called the <code>element</code> and the other the <code>visitor</code>. The <code>element</code> has an <code>accept()</code> method that takes the visitor as an argument. <code>accept()</code> then calls a <code>visit()</code> method of the visitor and passes itself as an argument to <code>visit()</code> So:</p>
+
+<ul>
+<li>When <code>accept()</code> is called, its implementation is chosen based on:
+
+<ul>
+<li>The dynamic type of the element</li>
+<li>The static type of the visitor</li>
+</ul></li>
+<li>When the associated <code>visit()</code> method is called, its implementation is chosen based on:
+
+<ul>
+<li>The dynamic type of the visitor</li>
+<li>The static type of the element as known from within the implementation of the <code>accept()</code> method, which is the dynamic type of the element.</li>
+</ul></li>
+</ul>
+
+<p>In other words, the visitor patterns allows the program to discern the dynamic type of both the element and the visitor, and effecively achieves double dispatch.</p>
+
+<p>While this likely covers most use cases, it&#39;s complicated and still misses out on any dispatch levels above two. Luckily for us Clojure supports multiple dispatch through multimethods.</p>
+
+<h3>Multimethods</h3>
+
+<p>Multimethods allow all kinds of cool dispatching. You can define multimethods using things other than simply the types of arguments being sent. Multimethods are defined using <code>defmulti</code> and candidates for the multimethod are added using <code>defmethod</code>. Let&#39;s take an example without multimethods, using a function that finds the fee that needs to be paid to different affiliates.</p>
+
+<pre><code>(defn fee-amount [percentage user]
+  (float (* 0.01 percentage (:salary user))))
+
+(defn affiliate-fee-cond [user]
+  (cond
+    (= :google.com (:referrer user)) (fee-amount 0.01 user)
+    (= :mint.com (:referrer user)) (fee-amount 0.03 user)
+    :default (fee-amount 0.02 user)))
+</code></pre>
+
+<p>The problem with this is that the <code>cond</code> statement in the affiliate fee function is going to get messy pretty quickly. Now lets start implementing the same thing with multimethods</p>
+
+<pre><code>(defmulti name dispatch-fn &amp; options)
+</code></pre>
+
+<p>This is the basic multimethod definition. <code>dispatch-fn</code> is a Clojure function that simply accepts the arguments that are passed when the multimethod is called and returns a &quot;dispatching value&quot;. Let&#39;s look at this with a concrete example:</p>
+
+<pre><code>(defmulti affiliate-fee :referrer)
+
+(defmethod affiliate-fee :mint.com [user]
+  (fee-amount 0.03 user))
+
+(defmethod affiliate-fee :google.com [user]
+  (fee-amount 0.01 user))
+
+(defmethod affiliate-fee :default [user]
+  (fee-amount 0.02 user))
+
+(def user-1 {:login &quot;rob&quot; :referrer :mint.com :salary 100000})
+(def user-2 {:login &quot;kyle&quot; :referrer :google.com :salary 90000})
+(def user-3 {:login &quot;celeste&quot; :referrer :yahoo.com :salary 70000})
+
+(affiliate-fee user-1)
+30.0
+(affiliate-fee user-2)
+9.0
+(affiliate-fee user-3)
+14.0
+</code></pre>
+
+<p>When the call is first made to <code>affiliate-fee</code> the multimethod calls the <code>dispatch-fn</code> first. The arguments to the dispatch function are the same as the arguments to the function, a hash map, in this case. Because keys work as functions, the function <code>:referrer</code> is called on the hash which returns the value associated with that and the function is processed. You can add in more criteria and define more methods so that every possible outcome is handled properly.</p>
+
+<h3>Ad-Hoc Hierarchies</h3>
+
+<p>You can use the <code>derive</code> method to create hierarchies and classifications. Imagine a service that has different membership levels:</p>
+
+<pre><code>(derive ::bronze ::basic)
+(derive ::silver ::basic)
+(derive ::gold ::premier)
+(derive ::platinum ::premier)
+
+(isa? ::platinum ::premier)
+true
+
+(isa? ::bronze ::premier)
+false
+</code></pre>
+
+<p>By doing this we can redefine our methods to use these classifications, you can have separate handling for <code>basic</code> and <code>premier</code> as opposed to needing methods that handle all four levels of service separately.</p>
+
+<h3>Java Hierarchies</h3>
+
+<p>Clojure supports Java class hierarchies out of the box, so there&#39;s no need to construct these using <code>derive</code>. Subclasses will be able to identify themselves as members of their parent classes.</p>
+
+<h3>Multiple Inheritance</h3>
+
+<p>Clojure doesn&#39;t forbid multiple inheritance so you can use things like this:</p>
+
+<pre><code>(derive ::programmer ::employee)
+(derive ::programmer ::geek)
+</code></pre>
+
+<p>Of course, with any kind of multiple inheritance situation you need a way to determine precedence when both inherited classes implement the same method. You can do this in Clojure with the following syntax.</p>
+
+<pre><code>(prefer-method multimethod-name ::geek ::employee)
+</code></pre>
+
+</div></body></html>

@@ -239,7 +239,17 @@ to
 
     (def fibo (memoize fibo))
 
-But re-binding that symbol is confusing to read and easily missed. A better way is to simply have `fib` bind to a memoized anonymous function in the first place.
+But re-binding the same symbol is confusing to read and easily missed. A better way is to simply have `fib` bind to a memoized anonymous function in the first place.
+
+    (def fibo
+      (memoize
+        (fn [n]
+          (loop [a 0 b 1 c 1]
+            (if (= c n)
+              b
+              (recur b (+ a b) (inc c)))))))
+
+This function has everything: Tail-calls, memoization, looping constructs, elegant nesting.
 
 ## Function Composition
 Let's look at an example of composing higher-order-functions with simpler ones.
@@ -482,4 +492,166 @@ In the anonymous function there is no binding for scale, it was bound in the `cr
     (println (thousand-scaler 0.42))
     >> 420
 
-Both of these call `create-scaler` and both of them give different values for `scale`, yet in both cases they enclose over the value of scale they have been passed and retain the different values.
+Both of these call `create-scaler` and both of them give different values for `scale`, yet in both cases they enclose over the value of scale they had been passed and retain the different values.
+
+## Namespaces
+Defining a namespace is easy, and performed by the `ns` macro.
+
+    (ns org.company.game.dice)
+
+    (defn roll-dice [num]
+      ...)
+
+The function `roll-dice` now lives in the `org.company.game.dice` namespace.
+
+#### Private vs Public
+There are two versions of the `defn` macro: `defn`, which makes the function visible to other namespaces, and `defn-` which only allows calling the function from within the same namespace.
+
+#### Use
+`use` allows the programmer to use external libraries as long as the files or jars are within a folder in the JVM's classpath. Here's an example of various libs being included from Github and the standard library:
+
+    (ns org.currylogic.damages.http.expenses)
+
+    (use 'org.danlarkin.json)
+    (use 'clojure.xml)
+    (defn import-transactions-xml-from-bank [url]
+      (let [xml-document (parse url)]
+        ;; more code here
+
+    (defn totals-by-day [start-date end-date]
+      (let [expenses-by-day (load-totals start-date end-date)]
+        (encode-to-str expenses-by-day)))
+
+`use` places all of the library functions directly into the current namespace. In large programs, or with large libraries, this isn't usually desired. Even for small programs, this can make it confusing to figure out where the functions came from. To include them in a way that requires using their address you can use `require`
+
+#### Require
+`require` includes all the functions from a library, but requires addressing them using the library name, followed by the function name.
+
+    (ns org.currylogic.damages.http.expenses)
+
+    (require '(org.danlarkin [json :as json-lib]))
+    (require '(clojure [xml :as xml-core]))
+
+    (defn import-transactions-xml-from-bank [url]
+      (let [xml-document (xml-core/parse url)]
+        ;; more code here
+
+    (defn totals-by-day [start-date end-date]
+      (let [expenses-by-day (load-totals start-date end-date)]
+        (json-lib/encode-to-str expenses-by-day)))
+
+#### REPL/reload/reload-all
+When using the REPL, you can reload the code files you imported by including `:reload` after the normal `use` or `require` statement.
+
+    (use 'org.currylogic.damages.http.expenses :reload)
+
+    (require '(org.currylogic.damages.http [expenses :as exp]) :reload)
+
+`:reload-all` does the same thing but reloads all of their dependent libraries as well.
+
+### Working With Namespaces
+- `create-ns` takes a symbol and creates a new namespace if it doesn't already exist
+- `in-ns` takes a symbol and switches to the namespace passed to it, if it doesn't exist, that namespace is created
+- `all-ns` takes no arguments and returns a list of all the currently loaded namespaces
+- `find-ns` takes a single symbol and returns `true` if it names a namespace, `false` if it does not
+- `ns-interns` takes a symbol as an argument and returns a map containing the var mappings for that namespace
+- `ns-public` is similar to `ns-interns` but it only returns a list of the public vars in the given namespace.
+- `ns-resolve` takes two symbols, one for a namespace and another for a var or Java class and attempts to resolve that class or var in the namespace. If not it returns `nil`
+- `resolve` does the same as ns-resolve, but it takes only one argument and tries to resolve the class or var in the current namespace
+- `ns-unmap` takes a symbol for a namespace and a mapped symbol within that namespace and unmaps it.
+- `remove-ns` completely removes the given namespace
+
+## Destructuring
+Is a less general form of the pattern matching found in languages like Haskell. It allows programmers to take an incoming collection and use only the pieces they need from it.
+
+    (defn describe-salary [person]
+      (let [first (:first-name person)
+            last (:last-name person)
+            annual (:salary person)]
+        (println first last "earns" annual)))
+
+This code does not use destructuring, and as you can see the `let` clause mostly retrieves variables from the `person` hash being passed in. Consider the alternative:
+
+    (defn describe-salary-2 [{first :first-name
+                           last :last-name
+                           annual :salary}]
+     (println first last "earns" annual))
+
+Rather than giving a name to `person`, this code directly destructures the hash and assigns values within it to the named vars in this function.
+
+### Vector Destructuring
+Is supported by any class that implements `nth`. Destructuring a vector involves giving another vector of names to assign to the variables. Note that the first name is assigned to the first item in the vector, and so on. Getting an item from a specific index requires a different syntax (explained under maps).
+
+    (defn print-amounts [[amount-1 amount-2]]
+      (println "amounts are:" amount-1 "and" amount-2))
+
+When you need the remainder of the list you can use `&` and pass one more name which will receive the tail end of the vector.  Similarly, you can use `:as` to bind the entire collection to another symbol on top of all this. An example of all three:
+
+    (defn print-all-amounts [[amount-1 amount-2 & remaining :as all]]
+      (println "Amounts are:" amount-1 "," amount-2 "and" remaining)
+      (println "Also, all the amounts are:" all))
+
+`&` is useful when you need to ensure you are dealing with the entire collection, and `:as` is important when you need to collect the first item, but retain a reference to the list it came from, for purposes of comparison or some other reason. As a final note, destructuring vectors also allows nested vectors by simply adding brackets where appropriate.
+
+### Map Destructuring
+Map destructuring is more common than vector destructuring mainly because you can use associations to fetch the exact data you are looking for. In fact, this works on any associative structure, including strings, vectors and arrays as well as maps. Let's use the example from earlier first
+
+    (defn describe-salary-2 [{first :first-name
+                              last :last-name
+                              annual :salary}]
+       (println first last "earns" annual))
+
+Suppose you have values that may or may not exist, you can implement these using the `:or` syntax.
+
+    (defn describe-salary-3 [{first :first-name
+                              last :last-name
+                              annual :salary
+                              bonus :bonus-percentage
+                              :or {bonus 5}}]
+      (println first last "earns" annual "with a" bonus "percent bonus"))
+
+The `:or` call essentially says "If this exists, use the `bonus` value, if not the bonus is `5` by default. These bindings can also use `:as` to bind the value to a different name.
+
+    (defn describe-person [{first :first-name
+                            last :last-name
+                            bonus :bonus-percentage
+                            :or {bonus 5}
+                            :as p}]
+      (println "Info about" first last "is:" p)
+      (println "Bonus is:" bonus "percent"))
+
+In this case `p` is bound to `bonus` and can be called using `p` in the code as seen.
+
+Finally, there are three more convenience macros that make it even easier to map things to a hash, using `:keys`, `:strs`, or `:syms`. Which one you use depends entirely on which data type is being used as the key, because keywords, strings and symbols are all valid keys in Clojure. An example using keywords:
+
+    (defn greet-user [{:keys [first-name last-name]}]
+       (println "Welcome," first-name last-name))
+
+In this case `first-name` and `last-name` are variables that bind to the keys `:first-name` and `:last-name`. If your keywords are strings, you use `:strs` if they're symbols, use `:syms`
+
+## Metadata
+Metadata is the ability to tag data with other data that is used to describe some aspect or feature of what is being tagged. For example you could tag methods that took external input or performed IO as potential security risks.
+
+    (def untrusted (with-meta {:command "clean-table" :subject "users"}
+                              {:safe false :io true}))
+
+If you inspect this symbol at the terminal the metadata does not even appear. To get the metadata you need to call the `meta` function, which returns only the metadata from it.
+
+    => untrusted
+    {:command "clean-table", :subject "users"}
+    => (meta untrusted)
+    {:safe false, :io true}
+
+Functions can be defined with metadata inserted below the docstring:
+
+    (defn
+      testing-meta "testing metadata for functions"
+      {:safe true :console true}
+      []
+       (println "Hello from meta!"))
+
+However, this doesn't work as above, when you call `(meta testing-meta)` you'll get nothing, because the metadata is actually associated with the var and not the function itself, so you need to call `meta` on the var.
+
+    (meta (var testing-meta))
+
+Will return the metadata for the function, you'll also probably notice a lot of extra metadata that Clojure uses internally to keep track of different features of a function, like where it is defined and what the docstring is.
