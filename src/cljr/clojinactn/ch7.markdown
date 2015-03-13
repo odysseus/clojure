@@ -243,4 +243,56 @@ For the most part that point is moot, you could use a function to return a rando
         `(condp = (rand-int ~len#) ~@conds#)))
 
 ### Defwebmethod
-Now let's use a macro that could be the basis for a domain specific language.
+Now let's use a macro that could be the basis for a domain specific language. Imagine we have a set of methods that take a hash returned by web requests, pull some information from that, and process it. An example might look like:
+
+    (defn login-user [request]
+      (let [username (:username request)
+            password (:password request)]
+        (if (check-credentials username password)
+          (str "Welcome back, " username ", " password " is correct!")
+          (str "Login failed!"))))
+
+The `let` block in this has a very high likelihood of being repeated over and over again in methods like this. Rather than repeating ourselves, let's define a macro that automatically does the hash stuff for us.
+
+    (defmacro defwebmethod [name args & exprs]
+      `(defn ~name [{:keys ~args}]
+         ~@exprs))
+
+Now we can rewrite the earlier code as this:
+
+    (defwebmethod login-user [username password]
+      (if (check-credentials username password)
+        (str "Welcome, " username ", " password " is still correct!")
+        (str "Login failed!")))
+
+It saves two lines and a little hassle for this one method, but across a large project it's easy to see how this could be very useful, and if you needed to add additional steps to process at the beginning of each request it would be trivial to add them to the macro, but rather more difficult to add them at another stage.
+
+### Assert-true
+Let's add a simple macro that works like a lightweight testing framework, it should ensure that the statement passed to it is true.
+
+    (defmacro assert-true [test-expr]
+      (let [[operator lhs rhs] test-expr]
+        `(let [lhsv# ~lhs rhsv# ~rhs ret# ~test-expr]
+           (if-not ret#
+             (throw (RuntimeException.
+                      (str '~lhs " is not " '~operator " " rhsv#)))
+             true))))
+
+You can even add basic checks for proper formatting:
+
+    (defmacro assert-true [test-expr]
+      (if-not (= 3 (count test-expr))
+        (throw (RuntimeException.
+             "Argument must be of the form
+                   (operator test-expr expected-expr)")))
+      (if-not (some #{(first test-expr)} '(< > <= >= = not=))
+        (throw (RuntimeException.
+           "operator must be one of < > <= >= = not=")))
+      (let [[operator lhs rhs] test-expr]
+        `(let [lhsv# ~lhs rhsv# ~rhs ret# ~test-expr]
+           (if-not ret#
+             (throw (RuntimeException.
+                (str '~lhs " is not " '~operator " " rhsv#)))
+             true))))
+
+

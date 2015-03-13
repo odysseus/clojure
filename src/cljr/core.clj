@@ -1,6 +1,11 @@
 (ns cljr.core
+  (:use clojure.test)
+  (import java.util.Date)
   (:require [cljr.sicp :as sicp]
-            [clojure.string :as s])
+            [clojure.string :as s]
+            [cljr.dates :as dates]
+            [cljr.dates_spec :as dates-spec]
+            [cljr.closures :as closures])
   (:gen-class))
 
 (defn qsort [[pivot :as coll]]
@@ -80,10 +85,56 @@
     (println "blue")
     (println "sky")))
 
+(defmacro assert-true [test-expr]
+  (if-not (= 3 (count test-expr))
+    (throw (RuntimeException.
+         "Argument must be of the form
+               (operator test-expr expected-expr)")))
+  (if-not (some #{(first test-expr)} '(< > <= >= = not=))
+    (throw (RuntimeException.
+       "operator must be one of < > <= >= = not=")))
+  (let [[operator lhs rhs] test-expr]
+    `(let [lhsv# ~lhs rhsv# ~rhs ret# ~test-expr]
+       (if-not ret#
+         (throw (RuntimeException.
+            (str '~lhs " is not " '~operator " " rhsv#)))
+         true))))
+
+(defmacro assert-false [test-expr]
+  (if-not (= 3 (count test-expr))
+    (throw (RuntimeException.
+         "Argument must be of the form
+               (operator test-expr expected-expr)")))
+  (if-not (some #{(first test-expr)} '(< > <= >= = not=))
+    (throw (RuntimeException.
+       "operator must be one of < > <= >= = not=")))
+  (let [[operator lhs rhs] test-expr]
+    `(let [lhsv# ~lhs rhsv# ~rhs ret# ~test-expr]
+       (if ret#
+         (throw (RuntimeException.
+            (str '~lhs " is " '~operator " " rhsv#)))
+         true))))
+
+(def assert-equal #(assert-true (= %1 %2)))
+
+(def assert-not-equal #(assert-true (not= %1 %2)))
+
+(defn time-diff [a b]
+  (let [ta (.getTime a)
+        tb (.getTime b)]
+    (if (> tb ta)
+      (float (/ (- tb ta) 1000))
+      (float (/ (- ta tb) 1000)))))
+
+(defn now []
+  (Date.))
+
+(defn enclosed []
+  (let [d1 (Date.)]
+    (fn []
+      (time-diff d1 (Date.)))))
+
 (defn -main [& args]
-  (randprint)
-  (randprint)
-  (randprint)
-  (randprint)
-  (randprint)
-  (randprint))
+  (def d (enclosed))
+  (Thread/sleep 1000)
+  (println (d)))

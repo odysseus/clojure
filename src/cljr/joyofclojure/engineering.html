@@ -1,0 +1,69 @@
+
+	<!DOCTYPE html><html><head>
+	<title>Joyofclojure/Engineering</title>
+	<style type="text/css"> 
+	body { font-family:'Helvetica', Arial, sans-serif; font-size:15px; 
+			color: #333; background-color:#FFF; line-height:1.5em; width:960px;
+      padding:0px}
+	h1 { font-size: 3.5em; line-height: 1em; color:#000; background-color:#FFF; 
+      text-align:center}
+  h1.chapter { background-color: #333; color: #fff; line-height:2em }
+	h2 { font-size: 2em; line-height: 1em; color:#000 }
+	h3 { font-size:1.5em; line-height: 1em; color:#000 } 
+  h4 { font-size:1em; line-height: 0em; padding-top:1em }
+	code { 	font-family: 'Monaco', monospace; font-size:12px; background:#EEE}
+	pre { color:#000; background:#EEE; padding:1em; line-height:1.35em }
+	#content { margin: 3.5em }
+	table { border-collapse: collapse; border: 1px solid #333 }
+	td { border: 1px solid #555; padding-left: 1em } 
+	th { color: #fff; background-color: #333 }
+	</style></head>
+	<body><div id="content">
+<h1>Engineering</h1>
+
+<p>Tools for creating larger programs</p>
+
+<h2>Namespaces</h2>
+
+<p>Namespaces function much the same as they do in most other languages. A namespace provides a mapping between symbols and the things they represent within that namespace, and outside of that namespace all of those things can be accessed using a fully qualified name.</p>
+
+<h3>Namespace Macros</h3>
+
+<p>the <code>ns</code> macro is used in essentially every clojure source code file, and using it does a surprising number of things. First it creates a new namespace of the name given, next it switches to that namespace. Finally, it loads in all the basic functions from the <code>java.lang</code> package and the <code>clojure.core</code> namespace.</p>
+
+<pre><code>(ns bacon)
+</code></pre>
+
+<p>See, super simple</p>
+
+<p>The <code>in-ns</code> macro creates the namespace and imports <code>java.lang</code> but not <code>clojure.core</code>. This feels like one of those, &quot;You&#39;ll know when you need it&quot; sort of things. Not even going to bother with examples because it works the same way as it does above.</p>
+
+<p>Finally, <code>create-ns</code> creates a namespace (predictably) and returns it as an object. This does <em>not</em> switch to that namespace. It creates java bindings but not <code>clojure.core</code>. You can create values in that namespace by using <code>intern</code>.</p>
+
+<p>You can remove namespaces by using <code>remove-ns</code></p>
+
+<p>Generally speaking, the <code>ns</code> macro is likely what you&#39;ll use 95% of the time, <code>in-ns</code> as specific use cases, and <code>create-ns</code> is for very specific, very advanced techniques that are best avoided until you really know what you&#39;re doing.</p>
+
+<h2>A Cascade of Classes</h2>
+
+<p>Clojure has essentially six different ways to define a class-like data structure: <code>gen-class</code>, <code>reify</code>, <code>proxy</code>, <code>defstruct</code>, <code>deftype</code>, and finally <code>defrecord</code>. This is a radical departure from the general simplicity seen elsewhere in the language, so what exactly is going on, and what are all these used for? This StackOverflow answer says it better than I could:</p>
+
+<hr>
+
+<p><em>Note: <code>defstruct</code> is not included in this answer and has, at any rate, been deprecated in favor of the new constructors like <code>defrecord</code></em></p>
+
+<p>So first, let&#39;s consider what these do. deftype and genclass are similar in that they both define a named class for ahead-of-time compilation. Genclass came first, followed by deftype in clojure 1.2. Deftype is preferred, and has better performance characteristics, but is more restrictive. A deftype class can conform to an interface, but cannot inherit from another class.</p>
+
+<p>Reify and proxy are both used to dynamically create an instance of an anonymous class at runtime. Proxy came first, reify came along with deftype and defrecord in clojure 1.2. Reify is preferred, just as deftype is, where the semantics are not too restrictive.</p>
+
+<p>That leaves the question of why both deftype and defrecord, since they appeared at the same time, and have a similar role. For most purposes, we will want to use defrecord: it has all the various clojure goodness that we know and love, sequability and so forth. Deftype is intended for use as a low level building block for the implementation of other datastructures. It doesn&#39;t include the regular clojure interfaces, but it does have the option of mutable fields (though this isn&#39;t the default).</p>
+
+<hr>
+
+<p>In other words, for your bread and butter object-like needs you&#39;ll normally go with <code>defrecord</code>. If you have a special use-case that seems to not fir this, then you can look at some of the other options.</p>
+
+<h2>Records</h2>
+
+<p>Records are defined </p>
+
+</div></body></html>
